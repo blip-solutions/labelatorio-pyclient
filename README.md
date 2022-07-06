@@ -1,7 +1,8 @@
-Labalator.io - python client
+Labelator.io - python client
 ==========================
 
-Python client for Labelato.io - labeling and ML training studio
+Python client for **[Labelator.io](https://www.Labelato.io)** - labeling and ML training studio
+
 
 
 ## Install
@@ -18,9 +19,11 @@ pip install labelatorio
 
 
 ### Connecting client
-```python
-import labelatorio
-client = labelatorio.Client(api_token="your_api_token")
+
+``` python
+    import labelatorio
+    client = labelatorio.Client(api_token="your_api_token")
+
 ```
 
 ### Getting project info
