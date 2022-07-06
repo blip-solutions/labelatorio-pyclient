@@ -8,6 +8,7 @@ requests = "*"
 dataclasses-json = "*"
 marshmallow = "*"
 tqdm = "*"
+pandas = "*"
 
 [dev-packages]
 pytest = "*"

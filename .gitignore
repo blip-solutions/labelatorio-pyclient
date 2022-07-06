@@ -37,3 +37,5 @@ htmlcov
 .mr.developer.cfg
 .project
 .pydevproject
+_*.md
+_tst_api_token.json
