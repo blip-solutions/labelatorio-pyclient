@@ -1,3 +1,4 @@
+import json
 import time
 import labelatorio
 import pandas as pd
@@ -22,7 +23,9 @@ def _generate_test_data(count:int):
     }
 
 def test_complete_scenario():
-    client = labelatorio.Client(api_token="ZVCbSRGTk2bMEsrb0xqMkGmvfHm2:2758de2b-90e9-44a7-96a0-5111743b0851-0ea40bee-39f7-4904-9928-942deba24c48", url="http://localhost:4000")
+    with open('_tst_api_token.json', 'r') as jsonFile:
+        tokenObj=json.load(jsonFile)
+    client = labelatorio.Client(api_token=tokenObj["apiToken"], url="http://localhost:4000")
     
     client.projects.get
 
@@ -80,8 +83,8 @@ def test_complete_scenario():
     
     client.models.apply_predictions(project_id, model_id=models[0].id)
     file_path = client.models.download(project_id, model_id=models[0].id)
-    import os
-    os.remove(file_path)
+    import shutil
+    shutil.rmtree(file_path)
 
 
 if __name__=="__main__":
