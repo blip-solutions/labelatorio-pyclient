@@ -5,7 +5,7 @@ import pandas as pd
 from labelatorio import data_model
 from labelatorio import enums
 import random
-
+import os
 
 def _generate_test_data(count:int):
     WORDS_FIRST=["this","that","he"]
@@ -37,17 +37,21 @@ def test_complete_scenario():
     the_project.labels=["A","B","C"]
     the_project= client.projects.save(the_project)
     project_id = the_project.id
-    
+       
     client.documents.delete_all(project_id)
 
     TOTAL_COUNT = 500
     df = pd.DataFrame(_generate_test_data(TOTAL_COUNT))
 
     ids = client.documents.add_documents(project_id, data=df)
+    time.sleep(10)
 
     client.documents.set_labels(project_id,ids[:10],["A"])
     client.documents.set_labels(project_id,ids[10:20],["B"])
     client.documents.set_labels(project_id,ids[20:30],["C"])
+    
+    data_df = client.documents.export_to_dataframe(project_id=project_id)
+    assert len(data_df)==len(ids), "Size of exported DF doesnt match what we've imported"
 
     stats=client.projects.get_stats(project_id=project_id)
 
@@ -81,14 +85,17 @@ def test_complete_scenario():
         if models and models[0].is_ready:
             break
     
-    client.models.apply_predictions(project_id, model_id=models[0].id)
-    file_path = client.models.download(project_id, model_id=models[0].id)
+    cache_model = ".cache/tests"
+    if not os.path.exists(cache_model):
+        os.makedirs(cache_model)
+    client.models.apply_predictions(project_id, model_name_or_id=models[0].id)
+    client.models.download(project_id, model_name_or_id=models[0].id, target_path=cache_model)
     import shutil
-    shutil.rmtree(file_path)
+    shutil.rmtree(cache_model)
 
 
-if __name__=="__main__":
-    test_complete_scenario()
+#if __name__=="__main__":
+#    test_complete_scenario()
 
     
 

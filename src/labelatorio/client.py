@@ -239,7 +239,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             "predicted_label":predicted_label,
             "prediction_certainty":prediction_certainty,
         }   
-        query_params={key:value for key,value in query_params if value}
+        query_params={key:value for key,value in query_params.items() if value}
 
         return self._call_endpoint("GET", f"projects/{project_id}/doc/count", query_params=query_params,entityClass=int)
 
@@ -428,18 +428,18 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
            DataFrame
         """
         
-        #TODO: !!! toto treba nahradiť sa sortovanie a incrementaciu kym su data!
         total_count = self.count(project_id)
 
         all_documnents=[]
-        page_size = 100
+        page_size = 1000
         for i in tqdm(range(0,total_count,page_size), desc="Export to dataframe", unit="batch",  delay=2):
             after = i
             #before = i+page_size
             
             queried_docs = self._call_endpoint("GET", f"/projects/{project_id}/doc/search", query_params={
-                "after":after,
+                "after":after-1,
                 "before":after+page_size,
+                "take":page_size
             }, entityClass=dict)
 
             for doc in  queried_docs:
@@ -454,27 +454,27 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
 
    
 
-    def get_info(self,project_id:str, model_id:str)  -> data_model.ModelInfo:
+    def get_info(self,project_id:str, model_name_or_id:str)  -> data_model.ModelInfo:
         """Get model details
 
         Args:
             project_id (str): Uuid of project
-            model_id (str): Uuid of the model
+            model_name_or_id (str): Uuid of the model
 
         Returns:
             data_model.ModelInfo: _description_
         """
-        return self._call_endpoint("GET", f"projects/{project_id}/models/{model_id}")
+        return self._call_endpoint("GET", f"projects/{project_id}/models/{model_name_or_id}")
 
-    def delete(self, project_id:str,model_id:str)-> None: 
+    def delete(self, project_id:str,model_name_or_id:str)-> None: 
         """Delete model
 
         Args:
             project_id (str): Uuid of project
-            model_id (str): Uuid of the model
+            model_name_or_id (str): Uuid of the model
 
         """
-        return self._call_endpoint("DELETE", f"projects/{project_id}/models/{model_id}")
+        return self._call_endpoint("DELETE", f"projects/{project_id}/models/{model_name_or_id}")
 
     def get_all(self,project_id:str)-> List[data_model.ModelInfo]:
         """Get all models for project
@@ -487,12 +487,31 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
         """
         return self._call_endpoint("GET", f"projects/{project_id}/models")
 
-    def download(self,project_id:str, model_id:str, target_path:str=None, unzip=True )->str:
+    def download(self,project_id:str, model_name_or_id:str, target_path:str=None):
+        if not target_path:
+            target_path= os.getcwd()
+        file_urls = self._call_endpoint("GET", f"/projects/{project_id}/models/download-urls",query_params={"model_name_or_id":model_name_or_id}, entityClass=dict)
+        for fileUrl in file_urls:
+            response = requests.get(fileUrl["url"], stream=True)
+            (path,file_name) = os.path.split(fileUrl["file"])
+            path = os.path.join(target_path,path)
+            if not os.path.exists(path):
+                os.makedirs(path)
+            
+        
+            with open(os.path.join(target_path, fileUrl["file"]), "wb") as handle:
+                for data in tqdm(response.iter_content(chunk_size=1024*1024),unit="MB",desc=fileUrl["file"]):
+                    handle.write(data)
+            
+
+
+
+    def download_legacy(self,project_id:str, model_name_or_id:str, target_path:str=None, unzip=True )->str:
         """Download model files
 
         Args:
             project_id (str): Uuid of project
-            model_id (str): Model Uuid
+            model_name_or_id (str): Model Uuid
             target_path (str): target directory where to save files
             unzip (bool, optional): Model is zipped after download...  whether to unzip the model, to be able to load it. Defaults to True.
 
@@ -505,19 +524,19 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
             f"/login/getAuthUrlParams",
             query_params={
                             "project_id":project_id,
-                            "parameter":model_id},
+                            "parameter":model_name_or_id},
             entityClass=dict)
-        auth_params["file_na,e"]=model_id+".zip"
+        auth_params["file_name"]=model_name_or_id+".zip"
 
-        request_url = self.url_for_path(f"/projects/{project_id}/models/{model_id}/download")
+        request_url = self.url_for_path(f"/projects/{project_id}/models/{model_name_or_id}/download")
         response = requests.get(request_url, stream=True,  params=auth_params)
-        zip_filename=os.path.join(target_path,model_id+".zip")
+        zip_filename=os.path.join(target_path,model_name_or_id+".zip")
         with open(zip_filename, "wb") as handle:
             for data in tqdm(response.iter_content(chunk_size=1024),unit="MB"):
                 handle.write(data)
         
         if unzip:
-            result_folder = os.path.join(target_path,model_id)
+            result_folder = os.path.join(target_path,model_name_or_id)
             with ZipFile(zip_filename, 'r') as zip_ref:
                 zip_ref.extractall(result_folder)
             os.remove(zip_filename)
@@ -527,22 +546,22 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
 
 
                 
-    def apply_predictions(self, project_id:str,model_id:str)-> None: 
+    def apply_predictions(self, project_id:str,model_name_or_id:str)-> None: 
         """Apply predictions from model
         Args:
             project_id (str): Uuid of project
-            model_id (str): Model Uuid
+            model_name_or_id (str): Model Uuid
         """
-        self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_id}/apply-predict", entityClass=None)
+        self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_name_or_id}/apply-predict", entityClass=None)
 
-    def apply_embeddings(self, project_id:str,model_id:str)-> None: 
+    def apply_embeddings(self, project_id:str,model_name_or_id:str)-> None: 
         """Regenerate embeddings and reindex by new model
 
         Args:
             project_id (str): Uuid of project
-             model_id (str): Model Uuid
+             model_name_or_id (str): Model Uuid
         """
-        self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_id}/apply-embeddings", entityClass=None)
+        self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_name_or_id}/apply-embeddings", entityClass=None)
 
 
 
