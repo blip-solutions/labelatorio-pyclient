@@ -9,6 +9,7 @@ dataclasses-json = "*"
 marshmallow = "*"
 tqdm = "*"
 pandas = "*"
+pydantic = "*"
 
 [dev-packages]
 pytest = "*"
