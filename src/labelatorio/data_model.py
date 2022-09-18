@@ -1,5 +1,6 @@
 
 from datetime import datetime
+from dateutil import parser
 from typing import *
 from dataclasses_json import dataclass_json, config
 from dataclasses import  dataclass
@@ -60,6 +61,7 @@ class TextDocument:
             TextDocument.COL_IINDEX
             ]
 
+
 @dataclass_json
 @dataclass
 class ScoredDocumentResponse:
@@ -93,9 +95,14 @@ class Topic:
 
 @dataclass_json
 @dataclass
-class ProjectStatistics():
+class ProjectBasicStatistics():
     total_count:int
     labeled_count:int
+
+
+@dataclass_json
+@dataclass
+class ProjectStatistics(ProjectBasicStatistics):
     by_label_count:Dict[str,int]
 
 
@@ -120,7 +127,7 @@ class Project:
     query:Union[None,str] = None
     task_type:Optional[str] =None
     labels:Optional[List[str]] = None
-    statistics:Union[ProjectStatistics,None] = None
+    statistics:Union[ProjectBasicStatistics,None] = None
     data_import_state:Union[str,None] = None
     label_settings:Optional[Dict[str,LabelSettings]] = None
 
@@ -168,7 +175,7 @@ class ModelInfo:
     created_at:datetime =field(
         metadata=config(
             encoder=datetime.isoformat,
-            decoder=datetime.fromisoformat,
+            decoder=parser.parse,
             mm_field=fields.DateTime(format='iso')
         )
     )
@@ -178,7 +185,7 @@ class ModelInfo:
     is_ready:bool = True
 
     def new(project_id:str, task_type:str, model_name:str, model_origin:str, train_params:TrainingParams) -> "ModelInfo":
-        return ModelInfo(ModelInfo.create_model_id(project_id), project_id=project_id, model_name=model_name, task_type=task_type, created_at=datetime.now(), model_origin=model_origin,train_params=train_params)
+        return ModelInfo(ModelInfo.create_model_id(project_id), project_id=project_id, model_name=model_name, task_type=task_type, created_at=datetime.utcnow(), model_origin=model_origin,train_params=train_params)
 
     def create_model_id(project_id):
         return f"{project_id}--{uuid.uuid4()}"

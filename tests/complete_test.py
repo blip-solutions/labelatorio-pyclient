@@ -3,9 +3,10 @@ import time
 import labelatorio
 import pandas as pd
 from labelatorio import data_model
-from labelatorio import enums
+from labelatorio import enums, DocumentQueryFilter
 import random
 import os
+
 
 def _generate_test_data(count:int):
     WORDS_FIRST=["this","that","he"]
@@ -43,7 +44,7 @@ def test_complete_scenario():
     TOTAL_COUNT = 500
     df = pd.DataFrame(_generate_test_data(TOTAL_COUNT))
 
-    ids = client.documents.add_documents(project_id, data=df)
+    ids = [res["id"] for res in client.documents.add_documents(project_id, data=df)]
     time.sleep(10)
 
     client.documents.set_labels(project_id,ids[:10],["A"])
@@ -65,7 +66,10 @@ def test_complete_scenario():
 
     found = client.documents.search(project_id, key="1")[0]
     assert found.labels==["A"],"document with key 1 should have label A set"
-    
+
+    found = client.documents.query(project_id, query=DocumentQueryFilter(key="1").Or(DocumentQueryFilter(key="2")))
+    assert len(found)==2, f"two records queried, but got {len(found)}"
+
     found = client.documents.search(project_id, false_positives="ClassA")
 
     neigbours = client.documents.get_neighbours(project_id, found[0].id, min_score=0.5, take=10)
@@ -94,8 +98,8 @@ def test_complete_scenario():
     shutil.rmtree(cache_model)
 
 
-#if __name__=="__main__":
-#    test_complete_scenario()
+if __name__=="__main__":
+    test_complete_scenario()
 
     
 

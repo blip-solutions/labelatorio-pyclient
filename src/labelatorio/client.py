@@ -9,6 +9,7 @@ import numpy as np
 from tqdm import tqdm
 import os
 from zipfile import ZipFile
+from labelatorio.query_model import DocumentQueryFilter, Or
 
 class Client:
     """
@@ -38,14 +39,15 @@ class Client:
             # remove trailing slash
             url = url[:-1]
         
-        if url.lower().startswith("http") and not url.lower().startswith("http://localhost") :
+        if url.lower().startswith("http") and "." in url:
+            print("Force to use https for any url that is has a domain")
             url = url.split("://")[1]
             self.url=f"https://{url}/"
         else:
             if not url.endswith("/"):
                 url=url+"/"
             self.url=url
-        self.headers={f"authorization":f"Basic {api_token}"}
+        self.headers={f"authorization":f"Basic {api_token}"} 
         self.timeout=500 
         self._check_auth()
         self.projects=ProjectEndpointGroup(self)
@@ -266,7 +268,8 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             project_id (str): Uuid of project
             topic_id (str, optional): topic_id filter
             keyword (str, optional): keyword filter
-            similar_to_doc (any, optional): Id of document to search similar docs to
+            similar_to_doc (any, optional): Id of docr
+            ument to search similar docs to
             similar_to_phrase (str, optional): custom phrase to search similar docs to
             min_score (Union[float,None], optional): Miminal similarity score to cap the results
             by_label (str, optional): label filter
@@ -304,6 +307,31 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
         else:
             return [data_model.TextDocument.from_dict(item) for item in responseData  ]
 
+    def query(self,
+            project_id: str, 
+            query:Union[DocumentQueryFilter,Or],
+            order_by:str = None,
+            skip:int = 0,
+            take:int=50
+    ) -> Union[List[data_model.TextDocument],List[data_model.ScoredDocumentResponse]]:
+        """_summary_
+
+        Args:
+            project_id (str): Uuid of project
+            query (Union[DocumentQueryFilter,Or]): Where query to match the documents
+            order_by (str, optional): Sort by field. Defaults to None.
+            skip (int, optional): paging - skip. Defaults to 0.
+            take (int, optional): paging - take. Defaults to 50.
+
+        Returns:
+            Union[List[data_model.TextDocument],List[data_model.ScoredDocumentResponse]]: _description_
+        """
+        responseData = self._call_endpoint("POST", f"/projects/{project_id}/doc/query", body=query, query_params={"order_by":order_by, "skip":skip, "take":take},entityClass=dict)
+        if responseData and "score" in responseData[0]:
+            return [data_model.ScoredDocumentResponse.from_dict(item) for item in responseData  ]
+        else:
+            return [data_model.TextDocument.from_dict(item) for item in responseData  ]
+            
     def get_neighbours(self,project_id:str, doc_id:str, min_score:float=0.7, take:int=50) -> List[data_model.TextDocument]:
         """Get documents similar to document
 
@@ -355,40 +383,39 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
         return result
 
 
-    def add_documents(self, project_id:str, data:pandas.DataFrame, upsert=False, batch_size=100 )->Union[List[str], None]:
+    def add_documents(self, project_id:str, data:Union[pandas.DataFrame,List[dict]], upsert:bool=False, batch_size:int=100 )->List[dict]:
         """Add documents to project
 
         Args:
             project_id (str): project id (uuid)
             data (pandas.DataFrame): dataframe with data... must have key + text column
-            schedule (bool, optional): Whether to schedule execution on labelatorio (async execution). Defaults to False. It's obligatory to shedule execution for more than 100 records
-            skip_if_exists (bool, optional): whether to check for duplicated by column [key] and skipp adding these records. Defaults to False.
-
+            upsert (bool): if true and record with the same key exists, it will be updated... if false, duplicates with same key will be allowed
         Raises:
-            Exception: Columun [key/text] must be present in data
+            Exception: Columun [text] must be present in data
 
         Returns:
-            List[str]: list of ids if [schedule] = False
-            None: if [schedule] = True
+            List[str]: list of ids 
         """
-        if "key" not in data.columns:
-            data=data.copy()
-            data["key"] =data.index
-        if "text" not in data.columns:
-            raise Exception("column named 'text' must be present in data")
+        if isinstance(data, pandas.DataFrame):
+            if "text" not in data.columns:
+                raise Exception("column named 'text' must be present in data")
+            
+            documents = data.to_dict(orient="records")
+        else:
+            for rec in data:
+                if "text" not in rec:
+                    raise Exception("column named 'text' must be present in data")
+            documents=data
 
-
-        data.to_dict(orient="records")
-        documents = data.to_dict(orient="records")
         def send(data):
             return self._call_endpoint("POST", f"/projects/{project_id}/doc", query_params={"upsert":upsert},entityClass=dict,body=data)
 
 
-        ids = []
+        response_data = []
         for batch in tqdm(batchify(documents,batch_size), total=(int(len(documents)/batch_size)),desc="Add documents",unit="batch", delay=2):
             for item in send(batch):
-                ids.append(item)
-        return ids
+                response_data.append(item)
+        return response_data
 
     def exclude(self, project_id:str, doc_ids:List[str])-> None: 
         """Exclude document 
@@ -408,6 +435,21 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             doc_id (str): id of document to delete
         """
         self._call_endpoint("DELETE", f"/projects/{project_id}/doc/{doc_id}", entityClass=None)
+
+    
+    def delete_by_query(self, project_id:str, query:Union[DocumentQueryFilter,Or], wait_for_completion=False)-> None: 
+        """_Delete documents by provided query
+
+        Args:
+            project_id (str): Uuid of project
+            query (Union[DocumentQueryFilter,Or]): query filter to match the documents to be deleted
+            wait_for_completion (bool, optional): Triggers synchronous exectuion. Limits the number of records to be deleted to 10 000 (but can be run in loop until no data remains). Defaults to False.
+
+        Returns:
+            None
+        """
+
+        self._call_endpoint("DELETE", f"/projects/{project_id}/doc/", body=query, query_params={"wait_for_completion":wait_for_completion}, entityClass=None)
 
 
     def delete_all(self, project_id:str)-> None:
@@ -454,7 +496,7 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
 
    
 
-    def get_info(self,project_id:str, model_name_or_id:str)  -> data_model.ModelInfo:
+    def get_info(self, model_name:str, project_id:str=None)  -> data_model.ModelInfo:
         """Get model details
 
         Args:
@@ -464,7 +506,13 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
         Returns:
             data_model.ModelInfo: _description_
         """
-        return self._call_endpoint("GET", f"projects/{project_id}/models/{model_name_or_id}")
+        if project_id:
+            return self._call_endpoint("GET", f"projects/{project_id}/models/{model_name}")
+        else:
+            if "/" in model_name:
+                return self._call_endpoint("GET", f"models/info/{model_name}")
+            else:
+                raise "model_name must be in this pattern: '{project_name}/{model_name}'"
 
     def delete(self, project_id:str,model_name_or_id:str)-> None: 
         """Delete model
@@ -487,7 +535,7 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
         """
         return self._call_endpoint("GET", f"projects/{project_id}/models")
 
-    def download(self,project_id:str, model_name_or_id:str, target_path:str=None):
+    def download(self,project_id:str, model_name_or_id:str, target_path:str=None, unzip=True):
         if not target_path:
             target_path= os.getcwd()
         file_urls = self._call_endpoint("GET", f"/projects/{project_id}/models/download-urls",query_params={"model_name_or_id":model_name_or_id}, entityClass=dict)
@@ -498,11 +546,16 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
             if not os.path.exists(path):
                 os.makedirs(path)
             
-        
-            with open(os.path.join(target_path, fileUrl["file"]), "wb") as handle:
+            file_path=os.path.join(target_path, fileUrl["file"])
+            with open(file_path, "wb") as handle:
                 for data in tqdm(response.iter_content(chunk_size=1024*1024),unit="MB",desc=fileUrl["file"]):
                     handle.write(data)
             
+            if unzip and file_path.lower().endswith(".zip"):
+               
+                with ZipFile(file_path, 'r') as zip_ref:
+                    zip_ref.extractall(target_path)
+                os.remove(file_path)
 
 
 

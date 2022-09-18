@@ -3,12 +3,12 @@ import setuptools
 
 
 setuptools.setup(name='labelatorio',
-                version='0.1.1',
+                version='0.2.0',
                 description='Labelator.io python client',
                 long_description=open('README.md').read(),
                 long_description_content_type='text/markdown',
                 author='Juraj Bezdek',
-                author_email='juraj.bezdek@gmail.com',
+                author_email='juraj.bezdek@blip.solutions',
                 url='https://github.com/blip-solutions/labelatorio-pyclient',
                 package_dir={"": "src"},
                 packages=setuptools.find_packages(where="src"),
@@ -24,6 +24,7 @@ setuptools.setup(name='labelatorio',
                     "requests",
                     "dataclasses-json",
                     "marshmallow",
-                    "tqdm"
+                    "tqdm",
+                    "pydantic"
                 ]
                 )
