@@ -406,7 +406,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
                 if "text" not in rec:
                     raise Exception("column named 'text' must be present in data")
             documents=data
-
+        
         def send(data):
             return self._call_endpoint("POST", f"/projects/{project_id}/doc", query_params={"upsert":upsert},entityClass=dict,body=data)
 
