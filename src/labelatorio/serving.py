@@ -5,8 +5,8 @@ from pydantic import BaseModel
 import requests
 
 class PredictionRequestRecord(BaseModel):
-    key:str
     text:str
+    key:Optional[str]
     contextData:Optional[Dict[str,str]]
     reviewProjectId:Optional[str] #where to send data for review... if not set, will be determined by model project
 
@@ -14,9 +14,12 @@ class Prediction(BaseModel):
     label:str
     score:float
 
+class Answer(BaseModel):
+    answer:str
+    score:float
 
 class PredictedItem(BaseModel):
-    predicted:Union[List[Prediction], None]
+    predicted:Union[List[Prediction],List[Answer], None]
     handling:str
     key:Optional[str]=None
     explanations:Optional[List[Dict]]=None
@@ -24,6 +27,7 @@ class PredictedItem(BaseModel):
 
 class PredictctRespone(BaseModel):
     predictions:List[PredictedItem]
+    
 
 
 class NodeClient:
@@ -54,16 +58,41 @@ class NodeClient:
             model=None,
             explain=False,
             test=False
-        ):
+        )->PredictctRespone:
         if isinstance(query,str) or isinstance(query,PredictionRequestRecord):
             query=[query]
         
         query_url =  (f"{self.url }/predict" if not model else f"{self.url}/predict/{model}")
         response = requests.post(
                 query_url,
-                json={"texts":[req.dict() for req in query]}, 
+                json={"texts":[req.dict() if isinstance(req,PredictionRequestRecord) else req  for req in query]}, 
                 headers=self.headers,
-                params={"explain":explain, "text":test},
+                params={k:v for k,v in {"explain":explain, "text":test}.items() if v},
+                timeout= self.timeout,
+            )
+
+        if response.status_code==200:
+            return PredictctRespone(**response.json())
+        else:
+            raise Exception(f"Unexpected response: {response.status_code}: {response.reason}")
+    
+    def get_answer(
+            self,
+            query:Union[str, PredictionRequestRecord, List[str], List[PredictionRequestRecord]] , 
+            top_k:int=None,
+            model=None,
+            explain=False,
+            test=False
+        ):
+        if isinstance(query,str) or isinstance(query,PredictionRequestRecord):
+            query=[query]
+        
+        query_url =  (f"{self.url }/get-answer" if not model else f"{self.url}/get-answer/{model}")
+        response = requests.post(
+                query_url,
+                json={"texts":[req.dict() if isinstance(req,PredictionRequestRecord) else req  for req in query]}, 
+                headers=self.headers,
+                params={k:v for k,v in {"explain":explain, "test":test,"top_k":top_k}.items() if v},
                 timeout= self.timeout,
             )
 
