@@ -388,13 +388,13 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
         return result
 
 
-    def add_documents(self, project_id:str, data:Union[pandas.DataFrame,List[dict]], upsert:bool=False, batch_size:int=100 )->List[dict]:
+    def add_documents(self, project_id:str, data:Union[pandas.DataFrame,List[dict]], upsert:bool=True, batch_size:int=100 )->List[dict]:
         """Add documents to project
 
         Args:
             project_id (str): project id (uuid)
             data (pandas.DataFrame): dataframe with data... must have key + text column
-            upsert (bool): if true and record with the same key exists, it will be updated... if false, duplicates with same key will be allowed
+            upsert (bool): if false, duplicates with same key will be allowed,note that records inserted with upsert=False will have id's will not be possible upsert by key anymore
         Raises:
             Exception: Columun [text] must be present in data
 
