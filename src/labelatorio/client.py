@@ -39,7 +39,7 @@ class Client:
             # remove trailing slash
             url = url[:-1]
         
-        if url.lower().startswith("http") and "." in url:
+        if url.lower().startswith("http:") and "." in url:
             print("Force to use https for any url that is has a domain")
             url = url.split("://")[1]
             self.url=f"https://{url}/"
@@ -52,6 +52,7 @@ class Client:
         self._check_auth()
         self.projects=ProjectEndpointGroup(self)
         self.documents=DocumentsEndpointGroup(self)
+        self.similarity_links=SimilarityLinkEndpointGroup(self)
         self.models=ModelsEndpointGroup(self)
 
     def _check_auth(self):
@@ -120,6 +121,10 @@ class EndpointGroup(Generic[T]):
 class ProjectEndpointGroup(EndpointGroup[data_model.Project]):
     def __init__(self, client: Client) -> None:
         super().__init__(client)    
+
+    def new(self,name:str, task_type:str)  -> data_model.Project:
+        newProject = data_model.Project.new(name, task_type)
+        return self.save(newProject)
 
     def get(self,project_id:str)  -> data_model.Project:
         """Get project by it's id
@@ -490,6 +495,63 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
 
         return pandas.DataFrame(all_documnents).set_index("_i", verify_integrity=True)
         
+
+class SimilarityLinkEndpointGroup(EndpointGroup[Tuple[dict,dict]]):
+    def query(self,
+            project_id: str, 
+            link_type:str,
+            select:Optional[List[str]]=None,
+            query:Union[DocumentQueryFilter,Or,None]=None,
+            fetch_all=True,
+            skip:int = 0,
+            take:int = 50
+    ) -> Union[List[Tuple[dict,dict]],Iterator[Tuple[dict,dict]]]:
+        """query the similarity links
+        
+        Note: Be aware that links are both sided so eventualy each link is efectively returned twice, with swaped items in the resulting tuple
+
+        Args:
+            project_id (str): Uuid of project
+            link_type (str): positive|negative
+            select (str): list of fields to select
+            query (Union[DocumentQueryFilter,Or,None], optional): query over the left side (source of the link)
+            fetch_all (bool): wheter to fetch all links matching the query_filter if defined. Defaults to true
+            skip (int, optional): paging - items to skip (ignored if fetch_all=True ). Defaults to 0.
+            take (int, optional): paging - items to take (ignored if fetch_all=True ). Defaults to 50.
+
+        Returns:
+            Union[List[Tuple[dict,dict]],Iterator[Tuple[dict,dict]]]: return list or itterator (if fetch_all=False) of tuples of two items (left, right side of the link)
+        """
+
+       
+        print("test")
+        if fetch_all:
+            result = []
+            page=1
+            page_size=500
+
+            while True:
+                previous_len=len(result)
+                for item in self.query(project_id,link_type, select, query, fetch_all=False, skip=page*page_size, take=page_size):
+                    result.append(item)
+
+                if len(result)==previous_len: #if not more data was fetched
+                    return result
+                else:
+                    page=page+1
+
+        else:
+            responseData = self._call_endpoint("POST", f"/projects/{project_id}/doc/similar/links/{link_type}/query", 
+                body=query, 
+                query_params={ 
+                    "skip":skip, 
+                    "take":take, 
+                    "select": ",".join(select) if select else None},
+                entityClass=dict
+                )
+            for rec in responseData:
+                yield tuple(rec) 
+
 class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
     def __init__(self, client: Client) -> None:
         super().__init__(client)     
