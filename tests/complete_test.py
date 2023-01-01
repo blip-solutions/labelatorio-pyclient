@@ -28,7 +28,6 @@ def test_complete_scenario():
         tokenObj=json.load(jsonFile)
     client = labelatorio.Client(api_token=tokenObj["apiToken"], url="http://localhost:4000")
     
-    client.projects.get
 
     existing_project = client.projects.get_by_name("unit-test")  
     if existing_project:
