@@ -3,7 +3,7 @@ import setuptools
 
 
 setuptools.setup(name='labelatorio',
-                version='0.2.3',
+                version='0.2.4',
                 description='Labelator.io python client',
                 long_description=open('README.md').read(),
                 long_description_content_type='text/markdown',
