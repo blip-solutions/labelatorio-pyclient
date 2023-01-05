@@ -100,3 +100,19 @@ class NodeClient:
             return PredictctRespone(**response.json())
         else:
             raise Exception(f"Unexpected response: {response.status_code}: {response.reason}")
+
+
+    def force_refresh(
+            self
+        )->None:
+        
+        response = requests.post(
+                f"{self.url}/refresh",
+                headers=self.headers,
+                timeout= self.timeout,
+            )
+
+        if response.status_code==200:
+            return
+        else:
+            raise Exception(f"Unexpected response: {response.status_code}: {response.reason}")

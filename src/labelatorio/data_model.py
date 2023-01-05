@@ -1,9 +1,9 @@
 
-from datetime import datetime
+from datetime import datetime, timezone
 from dateutil import parser
 from typing import *
 from dataclasses_json import dataclass_json, config
-from dataclasses import  dataclass
+from dataclasses import  dataclass, field
 from marshmallow import fields
 import uuid
 import labelatorio.enums as enums
@@ -16,27 +16,27 @@ from dataclasses import dataclass, field
 @dataclass
 class TextDocument:
     id:str
-    key:str
+    key:Optional[str]
     text:str
-    topic_id:Union[str,None]=None
-    topic_propability:Union[float,None] = None
+    #topic_id:Union[str,None]=None
+    #topic_propability:Union[float,None] = field(init=False)
     labels:Union[List[str],None] =None
     predicted_labels:Union[List[str],None] = None
     predicted_label_scores:Union[Dict[str, float],None]=None
     context_data:Union[Dict[str,str],None]=None
-    excluded:bool = False
+    #excluded:bool = False
     _i:Union[int,None] = None
 
     COL_ID="id"
     COL_KEY="key"
     COL_TEXT="text"
     COL_LABELS="labels"
-    COL_TOPIC_ID="topic_id"
-    COL_TOPIC_PROPABILITY="topic_propability"
+    #COL_TOPIC_ID="topic_id"
+    #COL_TOPIC_PROPABILITY="topic_propability"
     COL_PREDICTED_LABELS="predicted_labels"
     COL_PREDICTED_LABEL_SCORES="predicted_label_scores"
     COL_CONTEXT_DATA="context_data"
-    COL_EXCLUDED="excluded"
+    #COL_EXCLUDED="excluded"
     COL_IINDEX="_i"
     _COL_VECTOR="vector"
 
@@ -53,11 +53,11 @@ class TextDocument:
             TextDocument.COL_ID, 
             TextDocument.COL_KEY, 
             TextDocument.COL_LABELS, 
-            TextDocument.COL_TOPIC_ID, 
-            TextDocument.COL_TOPIC_PROPABILITY, 
+            #TextDocument.COL_TOPIC_ID, 
+            #TextDocument.COL_TOPIC_PROPABILITY, 
             TextDocument.COL_PREDICTED_LABELS, 
             TextDocument.COL_CONTEXT_DATA, 
-            TextDocument.COL_EXCLUDED,
+            #TextDocument.COL_EXCLUDED,
             TextDocument.COL_IINDEX
             ]
 
@@ -96,14 +96,14 @@ class Topic:
 @dataclass_json
 @dataclass
 class ProjectBasicStatistics():
-    total_count:int
-    labeled_count:int
+    total_count:Optional[int]
+    labeled_count:Optional[int]
 
 
 @dataclass_json
 @dataclass
 class ProjectStatistics(ProjectBasicStatistics):
-    by_label_count:Dict[str,int]
+    by_label_count:Optional[Dict[str,int]]
 
 
 @dataclass_json
@@ -142,9 +142,11 @@ class Project:
 class ProjectInfo:
     id:Union[str,None]
     name:str
-    # task_type:str
-    # labels:str
-    # label_settings:Optional[Dict[str,LabelSettings]] = None
+    #task_type:str
+    labels:List[str]
+    tennant_id:str
+    labeled_count:Optional[int]
+    total_count:Optional[int]
 
 
 
@@ -194,8 +196,8 @@ class ModelInfo:
 @dataclass_json
 @dataclass
 class ModelTrainingRequest:
-    task_type:str
-    from_model:str
+    task_type:str=None
+    from_model:str=None
     model_name:str=None
     max_num_epochs:int=5
     training_params:"ClassificationTrainingParams"=None
@@ -207,7 +209,11 @@ class TrainingParamsBase:
     learning_rate:float = 5e-5
     weight_decay:float = 0
     split:int = 70
+    batch_size:Optional[int]=None
     warmup_steps:int = 0
+    aditional_dataset_projects:Optional[List[str]] = None
+    include_context_data_key:Optional[str] = None
+    skip_duplicates:Optional[bool] = True
 
     def __post_init__(self, *args, **kwargs):
         self.learning_rate = float(self.learning_rate)
@@ -225,3 +231,132 @@ class ClassificationTrainingParams(TrainingParamsBase):
 class SimilarityTrainingParams(TrainingParamsBase):
     classification_pretraining:bool=False
     classification_pretraining_steps:int=3
+
+
+@dataclass_json
+@dataclass
+class TaskStatus:
+    task_id:str
+    task_name:str=None
+    state:str =None
+    tennant_id:str=None
+    project_id:str =None
+    progress_current:Union[int,None] = None
+    progress_total:Union[int,None] = None
+    start_time:Union[datetime,None] = field(
+        metadata=config(
+            encoder=lambda v: datetime.isoformat(v) if v is not None else None,
+            decoder=lambda v: datetime.fromisoformat(v).replace(tzinfo=timezone.utc) if v is not None else None,
+            mm_field=fields.DateTime(format='iso')
+        ), 
+        default= None
+    )
+    duration_sec:Union[int,None] = None
+    timestamp:Union[datetime,None] = field(
+        metadata=config(
+            encoder=lambda v: datetime.isoformat(v) if v is not None else None,
+            decoder=lambda v: datetime.fromisoformat(v).replace(tzinfo=timezone.utc) if v is not None else None,
+            mm_field=fields.DateTime(format='iso')
+        ), 
+        default= None
+    )
+    current_subtask:Union[str,None] = None
+    error_msg:Union[str,None] = None
+    result:Optional[str]=None
+    
+
+    
+
+    
+@dataclass_json
+@dataclass
+class FloatRange:
+    max:float
+    min:float
+    
+@dataclass_json
+@dataclass
+class RoutingSetting:
+    rule_type:str
+    handling:str #manual | model-review | model-auto
+    anchors:Optional[List[str]]=None
+    similarity_range:Optional[FloatRange] = None
+    predicted_labels:Optional[List[str]] = None
+    prediction_score_range:Optional[FloatRange] = None
+    name:Optional[str]=None
+    regex:Optional[str]=None
+
+
+@dataclass_json
+@dataclass
+class ModelSettings:
+    project_id:str
+    model_name:str
+    task_type:str
+    similarity_model:Optional[str] = None
+    routing:Optional[List[RoutingSetting]]=None
+    default_handling:str="model-auto"
+    min_prediction_score:float = 0.5
+
+
+@dataclass_json
+@dataclass
+class NodeSettings:
+    default_model:Optional[str]=None
+    models:List[ModelSettings]=None
+    authorization:"NodeAuthorization" = None
+
+    def __post_init__(self):
+        if not self.authorization:
+            self.authorization=NodeAuthorization()
+        if self.models is None:
+            self.models=[]
+
+
+
+@dataclass_json
+@dataclass
+class NodeAuthorization:
+    enable_public_access:bool =False
+    auth_method:Optional[str] ="API_KEY" #API_KEY|OIDC
+    api_key:Optional[str] = None
+    oidc:Optional["OidcSettings"] = None
+
+@dataclass_json
+@dataclass
+class OidcSettings:
+    issuer:str
+    client_id:Optional[str]
+    audience:Optional[str]
+    base_authorization_server_uri:Optional[str]
+    signature_cache_ttl:Optional[int]
+    #https://pypi.org/project/fastapi-oidc/
+    
+
+@dataclass_json
+@dataclass
+class NodeInfo:
+    node_name:str
+    deployment_type:str #enums.NodeDeploymentTypes (managed, self-hosted)
+    node_type:Optional[str]=None   #enums.NodeType (GPU,CPU)
+    status:Optional[str]=None  #enums.NodeStatusTypes (PENDING,UPDATING,READY,CONFIG_OUT_OF_DATE,ERROR)
+    message:Optional[str]=None 
+
+    host_url:Optional[str]=None 
+    last_operation_id:Optional[str]=None
+    last_heartbeat:Optional[datetime] = field(
+        default=None,
+        metadata=config(
+            encoder=lambda val: datetime.isoformat(val) if val else None,
+            decoder=lambda isoString: parser.parse(isoString) if isoString else None,
+            mm_field=fields.DateTime(format='iso')
+        )
+    )
+    created_at:Optional[datetime] = field(
+        default=None,
+        metadata=config(
+            encoder=lambda val: datetime.isoformat(val) if val else None,
+            decoder=lambda isoString: parser.parse(isoString) if isoString else None,
+            mm_field=fields.DateTime(format='iso')
+        )
+    )

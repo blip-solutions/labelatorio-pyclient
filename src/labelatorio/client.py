@@ -1,4 +1,3 @@
-from pydoc_data.topics import topics
 import pandas
 import requests
 import labelatorio.data_model as data_model
@@ -9,7 +8,10 @@ import numpy as np
 from tqdm import tqdm
 import os
 from zipfile import ZipFile
+import labelatorio.enums as enums
 from labelatorio.query_model import DocumentQueryFilter, Or
+import time
+
 
 class Client:
     """
@@ -54,6 +56,9 @@ class Client:
         self.documents=DocumentsEndpointGroup(self)
         self.similarity_links=SimilarityLinkEndpointGroup(self)
         self.models=ModelsEndpointGroup(self)
+        self.tasks=TaskEndpointGroup(self)
+        self.serving_nodes=ServingNodesEndpointGroup(self)
+        self.topics=TopicsEndpointGroup(self)
 
     def _check_auth(self):
         login_status_response= requests.get(self.url+ "login/status", headers=self.headers, timeout=self.timeout)
@@ -67,8 +72,10 @@ class Client:
                 raise Exception("Invalid login response")
         else:
             raise Exception(f"Login error: {login_status_response.status_code}")
-
-        print(f"Logged in as: {user}")
+        from labelatorio import __version__
+        print(f"Labelator.io client version {__version__}")
+        print(f" logged in as: {user}")
+        print(f" tennant_id: {payload.get('tennant_id')}")
 
 
 
@@ -78,16 +85,20 @@ class EndpointGroup(Generic[T]):
     def __init__(self, client: Client) -> None:
         self.client=client
 
-    def url_for_path(self, endpoint_path:str):
+    def _url_for_path(self, endpoint_path:str):
         return self.client.url+endpoint_path
 
-    def get_entity_type(self):
+    def _get_entity_type(self):
         return next(base.__args__[0] for base in self.__class__.__orig_bases__ if len(base.__args__)==1)
 
     def _call_endpoint(self,method,endpoint_path,query_params=None,body=None, entityClass=T):
-        request_url = self.url_for_path(endpoint_path)
+        request_url = self._url_for_path(endpoint_path)
+
+        if dataclasses.is_dataclass(body):
+            body=body.to_dict()
+
         if entityClass==T:
-            entityClass=self.get_entity_type()
+            entityClass=self._get_entity_type()
         if method=="GET":
             response = requests.get(request_url, params=query_params,json=body, headers=self.client.headers, timeout=self.client.timeout)
         elif method=="POST":
@@ -332,10 +343,8 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             Union[List[data_model.TextDocument],List[data_model.ScoredDocumentResponse]]: _description_
         """
         responseData = self._call_endpoint("POST", f"/projects/{project_id}/doc/query", body=query, query_params={"order_by":order_by, "skip":skip, "take":take},entityClass=dict)
-        if responseData and "score" in responseData[0]:
-            return [data_model.ScoredDocumentResponse.from_dict(item) for item in responseData  ]
-        else:
-            return [data_model.TextDocument.from_dict(item) for item in responseData  ]
+        
+        return [data_model.ScoredDocumentResponse.from_dict(item) if "score" in item else data_model.TextDocument.from_dict(item) for item in responseData  ]
             
     def get_neighbours(self,project_id:str, doc_id:str, min_score:float=0.7, take:int=50) -> List[data_model.TextDocument]:
         """Get documents similar to document
@@ -405,7 +414,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             if "text" not in data.columns:
                 raise Exception("column named 'text' must be present in data")
             
-            documents = data.to_dict(orient="records")
+            documents = data.replace({np.nan:None}).to_dict(orient="records")
         else:
             for rec in data:
                 if "text" not in rec:
@@ -568,13 +577,14 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
         Returns:
             data_model.ModelInfo: _description_
         """
-        if project_id:
+        
+        if project_id and "/" not in model_name:
             return self._call_endpoint("GET", f"projects/{project_id}/models/{model_name}")
         else:
             if "/" in model_name:
                 return self._call_endpoint("GET", f"models/info/{model_name}")
             else:
-                raise "model_name must be in this pattern: '{project_name}/{model_name}'"
+                raise Exception("if project_id is not set, model_name must be in this pattern: '{project_name}/{model_name}'")
 
     def delete(self, project_id:str,model_name_or_id:str)-> None: 
         """Delete model
@@ -620,71 +630,176 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
                 os.remove(file_path)
 
 
-
-    def download_legacy(self,project_id:str, model_name_or_id:str, target_path:str=None, unzip=True )->str:
-        """Download model files
-
-        Args:
-            project_id (str): Uuid of project
-            model_name_or_id (str): Model Uuid
-            target_path (str): target directory where to save files
-            unzip (bool, optional): Model is zipped after download...  whether to unzip the model, to be able to load it. Defaults to True.
-
-        Returns:
-            Path to zipped model or folder with model files
-        """
-        if not target_path:
-            target_path=os.getcwd()
-        auth_params = self._call_endpoint("GET", 
-            f"/login/getAuthUrlParams",
-            query_params={
-                            "project_id":project_id,
-                            "parameter":model_name_or_id},
-            entityClass=dict)
-        auth_params["file_name"]=model_name_or_id+".zip"
-
-        request_url = self.url_for_path(f"/projects/{project_id}/models/{model_name_or_id}/download")
-        response = requests.get(request_url, stream=True,  params=auth_params)
-        zip_filename=os.path.join(target_path,model_name_or_id+".zip")
-        with open(zip_filename, "wb") as handle:
-            for data in tqdm(response.iter_content(chunk_size=1024),unit="MB"):
-                handle.write(data)
-        
-        if unzip:
-            result_folder = os.path.join(target_path,model_name_or_id)
-            with ZipFile(zip_filename, 'r') as zip_ref:
-                zip_ref.extractall(result_folder)
-            os.remove(zip_filename)
-            return result_folder
-        else:
-            return zip_filename
-
-
                 
-    def apply_predictions(self, project_id:str,model_name_or_id:str)-> None: 
+    def apply_predictions(self, project_id:str,model_name_or_id:str)-> "TaskStatusHandle": 
         """Apply predictions from model
         Args:
             project_id (str): Uuid of project
             model_name_or_id (str): Model Uuid
         """
-        self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_name_or_id}/apply-predict", entityClass=None)
+        return TaskStatusHandle(self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_name_or_id}/apply-predict", entityClass=dict), self.client)
 
-    def apply_embeddings(self, project_id:str,model_name_or_id:str)-> None: 
+    def apply_embeddings(self, project_id:str,model_name_or_id:str)-> "TaskStatusHandle": 
         """Regenerate embeddings and reindex by new model
 
         Args:
             project_id (str): Uuid of project
              model_name_or_id (str): Model Uuid
         """
-        self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_name_or_id}/apply-embeddings", entityClass=None)
+        return TaskStatusHandle(self._call_endpoint("PUT", f"/projects/{project_id}/models/{model_name_or_id}/apply-embeddings", entityClass=dict), self.client)
 
 
 
-    def train(self, project_id:str, model_training_request:data_model.ModelTrainingRequest)-> None: 
+    def train(self, project_id:str, model_training_request:data_model.ModelTrainingRequest)-> "TaskStatusHandle": 
         """Start training task
 
         Args:
             project_id (str): Uuid of project
             model_training_request (data_model.ModelTrainingRequest): Training settings
         """
-        self._call_endpoint("PUT", f"/projects/{project_id}/models/train", body=model_training_request.to_dict(), entityClass=None)
+        return TaskStatusHandle(self._call_endpoint("PUT", f"/projects/{project_id}/models/train", body=model_training_request.to_dict(), entityClass=dict), self.client)
+
+
+class TaskEndpointGroup(EndpointGroup[data_model.TaskStatus]):
+
+    def get_latest(self, project_id:Optional[str]=None)-> List[data_model.TaskStatus]: 
+        return self._call_endpoint("GET", f"/projects/tasks", query_params={"project_id":project_id} if project_id else None)
+
+    def get_task_status(self, task_id:str)-> data_model.TaskStatus: 
+        return self._call_endpoint("GET", f"/projects/tasks/{task_id}")
+
+class ServingNodesEndpointGroup(EndpointGroup[data_model.NodeInfo]):
+
+    def get_nodes(self)-> List[data_model.NodeInfo]: 
+        """Returns list of serving nodes
+
+        Returns:
+            List[data_model.NodeInfo]
+        """
+        return self._call_endpoint("GET", f"/serving/nodes")
+
+    def create_node(self, node_name:str, deployment_type:str, node_type:Optional[str]=None, host_url:Optional[str]=None)-> data_model.NodeInfo: 
+        """Creates a serving node.
+        Based on deployment_type you sould set node_type or host_url
+        - For deployent_type==managed: set node_type (CPU|GPU)
+        - For deployent_type==self-hosted: set host_url so testing the node and calling refresh commands would be possible. If Node is not availble on accesible from the internet, it is not needed.
+
+
+        Args:
+            node_name (str): node name must be url compatibile name
+            deployment_type (str): one of labelatorio.enums.NodeDeploymentTypes options (managed|self-hosted)
+            node_type (Optional[str], optional):  one of labelatorio.enums.NodeTypes options (CPU|GPU)
+            host_url (Optional[str], optional): url at which the Node will be hosted. Automaticaly assigned for managed nodes
+
+        Returns:
+            data_model.NodeInfo: the created NodeInfo
+        """
+        return self._call_endpoint("POST", f"/serving/nodes", body=data_model.NodeInfo(node_name=node_name, node_type=node_type, deployment_type=deployment_type, host_url=host_url))
+
+    def get_node(self, node_name:str)-> data_model.NodeInfo: 
+        """Get node by its name
+
+        Args:
+            node_name (str): _description_
+
+        Returns:
+            data_model.NodeInfo: _description_
+        """
+        return self._call_endpoint("GET", f"/serving/nodes/{node_name}")
+
+    def update_node(self, node_name:str, host_url:str)-> data_model.NodeInfo: 
+        return self._call_endpoint("PATCH", f"/serving/nodes/{node_name}", body={"host_url":host_url})
+
+    def delete_node(self, node_name:str):
+        return self._call_endpoint("DELETE", f"/serving/nodes/{node_name}", entityClass=dict)
+
+    def start_node(self, node_name:str): 
+        return self._call_endpoint("POST", f"/serving/nodes/{node_name}/start", entityClass=dict)
+
+    def stop_node(self, node_name:str): 
+        return self._call_endpoint("POST", f"/serving/nodes/{node_name}/stop", entityClass=dict)
+
+    def get_node_settings(self, node_name:str)-> data_model.NodeSettings: 
+        return self._call_endpoint("GET", f"/serving/nodes-settings/{node_name}", entityClass=data_model.NodeSettings)
+
+    def update_node_settings(self, node_name:str, settings:data_model.NodeSettings) ->data_model.NodeSettings: 
+        return self._call_endpoint("PUT", f"/serving/nodes-settings/{node_name}", body=settings, entityClass=data_model.NodeSettings)
+
+
+class TopicsEndpointGroup(EndpointGroup[data_model.Topic]):
+    def get_all(self, project_id)-> List[data_model.Topic]: 
+        results=[]
+        page_size=500
+        page=0
+        while True:
+            subresults = self._call_endpoint("GET", f"/projects/{project_id}/topic/search", query_params={"skip":page_size*page,"take":page_size})
+            results+=subresults
+            page+=1
+            if not subresults:
+                break
+        return results
+
+    def regenerate(self, project_id)-> "TaskStatusHandle": 
+        return TaskStatusHandle(self._call_endpoint("POST", f"/projects/{project_id}/topic/regenerate", entityClass=dict), self.client)
+
+    def get_topic(self, project_id, topic_id)-> data_model.Topic: 
+        return self._call_endpoint("GET", f"/projects/{project_id}/topic/{topic_id}")
+    
+    def get_topic_stats(self, project_id, topic_id)-> dict: 
+        return self._call_endpoint("GET", f"/projects/{project_id}/topic/{topic_id}/stats", entityClass=dict)
+    
+    def search_topics(self, project_id, keyword:str, take=50)-> List[data_model.Topic]: 
+        return self._call_endpoint("GET", f"/projects/{project_id}/topic/search", query_params={"keyword":keyword, "skip":0,"take":take})
+
+
+
+
+class TaskStatusHandle:
+    def __init__(self, task_id:Union[str,dict], client: Client) -> None:
+        self.task_id=task_id if isinstance(task_id,str) else task_id["task_id"]
+        self.client= client
+        self.current_status:data_model.TaskStatus =None
+
+    def __str__(self):
+        if self.current_status:
+            return f"{self.current_status.task_name} "+tqdm.format_meter(self.current_status.progress_current or 0, self.current_status.progress_total or 0, elapsed=self.current_status.duration_sec or 0) + f" [{self.current_status.state}]" +(f" >> Current subtask: {self.current_status.current_subtask}" if self.current_status.current_subtask else "" + (f"task_id: {self.task_id}") )
+        else:
+            return f"TaskStatusHandle(task_id:{self.task_id}, current_status:None)"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+    def wait_until_finished(self, polling_interval_sec:int = 15, timeout_sec:int = 60*60*6,  print_progress:bool=True):
+        wait_itterator = self._get_wait_until_finished_polling_generator(polling_interval_sec,timeout_sec)
+        last_print_len=0
+        print_out=""
+        print("")
+        for _it in wait_itterator:
+            if print_progress:
+                print_out=str(self)
+                print('\r'+print_out, end= (" "*(last_print_len-len(print_out))), flush=True)
+                last_print_len=len(print_out)
+        if print_progress:
+            print('\r'+str(self), end=(" "*(last_print_len-len(print_out))), flush=True)
+
+    def refresh_status(self):
+        self.current_status = self.client.tasks.get_task_status(self.task_id)
+        return self
+    
+    def is_finished(self):
+        return enums.TaskStatusStates.is_done(self.current_status.state)
+
+    def _get_wait_until_finished_polling_generator(self, polling_interval_sec:int, timeout_sec:int):
+        
+        polling_interval_sec = polling_interval_sec if polling_interval_sec>0 else 15
+        for _it in range(int((timeout_sec+polling_interval_sec)/polling_interval_sec)):
+            if not self.refresh_status().is_finished():
+                yield self
+                time.sleep(polling_interval_sec)
+            else:
+                break
+            
+        return self
+
+
+

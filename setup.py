@@ -1,9 +1,9 @@
 import setuptools
-#from src.labelatorio.version import Version
+from src.labelatorio import __version__
 
 
 setuptools.setup(name='labelatorio',
-                version='0.2.4',
+                version=__version__,
                 description='Labelator.io python client',
                 long_description=open('README.md').read(),
                 long_description_content_type='text/markdown',

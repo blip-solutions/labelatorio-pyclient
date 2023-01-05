@@ -1,4 +1,4 @@
-from typing import List, TypeVar
+from typing import List, TypeVar, Optional, Dict, Union
 from functools import wraps
 import inspect
 T = TypeVar('T')
@@ -56,22 +56,22 @@ class DocumentQueryFilter(dict):
     
     @dict_initializer
     def __init__(self, 
-        _i = None,
-        id = None,
-        key = None,
-        text = None,
-        labels = None,
-        topic_id = None,
-        topic_propability = None,
-        predicted_labels = None,
-        context_data = None,
-        predicted_label_scores = None,
-        excluded = None,
-        similar_to_phrase:str = None,
-        similar_to_doc:str = None,
-        similar_to_vec:List[float] = None,
-        false_positives:bool = None,
-        false_negatives:bool = None
+        _i:Optional[int] = None,
+        id:Union[str,List[str],None] = None,
+        key:Union[str,List[str],None] = None,
+        text:Union[str,List[str],None] = None,
+        labels:Union[str,List[str],None] = None,
+        topic_id:Union[str,List[str],None] = None,
+        predicted_labels:Union[str,List[str],None] = None,
+        predicted_label_scores:Optional[Dict[str,float]]  = None,
+        excluded:Optional[bool] = None,
+        similar_to_phrase:Optional[str] = None,
+        similar_to_doc:Optional[str] = None,
+        min_score:Optional[float] = None,
+        similar_to_vec:Optional[List[float]] = None,
+        false_positives:Union[str,List[str],None] = None,
+        false_negatives:Union[str,List[str],None] = None,
+        context_data:Optional[Dict[str,str]] =None
     ):
         pass
 
