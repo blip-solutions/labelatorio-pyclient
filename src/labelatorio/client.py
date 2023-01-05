@@ -611,6 +611,8 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
         if not target_path:
             target_path= os.getcwd()
         file_urls = self._call_endpoint("GET", f"/projects/{project_id}/models/download-urls",query_params={"model_name_or_id":model_name_or_id}, entityClass=dict)
+        if not file_urls:
+            raise Exception("There seams to be no files for this model!")
         for fileUrl in file_urls:
             response = requests.get(fileUrl["url"], stream=True)
             (path,file_name) = os.path.split(fileUrl["file"])
