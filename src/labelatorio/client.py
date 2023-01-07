@@ -91,7 +91,7 @@ class EndpointGroup(Generic[T]):
     def _get_entity_type(self):
         return next(base.__args__[0] for base in self.__class__.__orig_bases__ if len(base.__args__)==1)
 
-    def _call_endpoint(self,method,endpoint_path,query_params=None,body=None, entityClass=T):
+    def _call_endpoint(self,method,endpoint_path,query_params=None,body=None, entityClass=T, ignore_err_status_codes=None):
         request_url = self._url_for_path(endpoint_path)
 
         if dataclasses.is_dataclass(body):
@@ -126,6 +126,9 @@ class EndpointGroup(Generic[T]):
             else:
                 return entityClass(response.content)
         else:
+            if response.status_code==ignore_err_status_codes \
+                or isinstance(ignore_err_status_codes,list) and (response.status_code in ignore_err_status_codes):
+                return None
             raise Exception(f"Error response from server: {response.status_code}: {response.text}")
 
 
@@ -565,7 +568,6 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
     def __init__(self, client: Client) -> None:
         super().__init__(client)     
 
-   
 
     def get_info(self, model_name:str, project_id:str=None)  -> data_model.ModelInfo:
         """Get model details
@@ -578,13 +580,15 @@ class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
             data_model.ModelInfo: _description_
         """
         
-        if project_id and "/" not in model_name:
-            return self._call_endpoint("GET", f"projects/{project_id}/models/{model_name}")
-        else:
-            if "/" in model_name:
-                return self._call_endpoint("GET", f"models/info/{model_name}")
+        
+        if "/" in model_name or project_id:
+            if project_id:
+                query={"project_id":project_id}
             else:
-                raise Exception("if project_id is not set, model_name must be in this pattern: '{project_name}/{model_name}'")
+                query=None
+            return self._call_endpoint("GET", f"models/info/{model_name}", query_params=query)
+        else:
+            raise Exception("if project_id is not set, model_name must be in this pattern: '{project_name}/{model_name}'")
 
     def delete(self, project_id:str,model_name_or_id:str)-> None: 
         """Delete model
