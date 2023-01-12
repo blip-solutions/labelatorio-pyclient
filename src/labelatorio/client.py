@@ -328,7 +328,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
 
     def query(self,
             project_id: str, 
-            query:Union[DocumentQueryFilter,Or],
+            query:Union[DocumentQueryFilter,Or, Dict],
             order_by:str = None,
             skip:int = 0,
             take:int=50
@@ -337,7 +337,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
 
         Args:
             project_id (str): Uuid of project
-            query (Union[DocumentQueryFilter,Or]): Where query to match the documents
+            query (Union[DocumentQueryFilter,Or,Dict]): Where query to match the documents
             order_by (str, optional): Sort by field. Defaults to None.
             skip (int, optional): paging - skip. Defaults to 0.
             take (int, optional): paging - take. Defaults to 50.
@@ -517,7 +517,7 @@ class SimilarityLinkEndpointGroup(EndpointGroup[Tuple[dict,dict]]):
             fetch_all=True,
             skip:int = 0,
             take:int = 50
-    ) -> Union[List[Tuple[dict,dict]],Iterator[Tuple[dict,dict]]]:
+    ) -> List[Tuple[dict,dict]]:
         """query the similarity links
         
         Note: Be aware that links are both sided so eventualy each link is efectively returned twice, with swaped items in the resulting tuple
@@ -535,24 +535,7 @@ class SimilarityLinkEndpointGroup(EndpointGroup[Tuple[dict,dict]]):
             Union[List[Tuple[dict,dict]],Iterator[Tuple[dict,dict]]]: return list or itterator (if fetch_all=False) of tuples of two items (left, right side of the link)
         """
 
-       
-        print("test")
-        if fetch_all:
-            result = []
-            page=1
-            page_size=500
-
-            while True:
-                previous_len=len(result)
-                for item in self.query(project_id,link_type, select, query, fetch_all=False, skip=page*page_size, take=page_size):
-                    result.append(item)
-
-                if len(result)==previous_len: #if not more data was fetched
-                    return result
-                else:
-                    page=page+1
-
-        else:
+        def fetch_data():
             responseData = self._call_endpoint("POST", f"/projects/{project_id}/doc/similar/links/{link_type}/query", 
                 body=query, 
                 query_params={ 
@@ -563,6 +546,24 @@ class SimilarityLinkEndpointGroup(EndpointGroup[Tuple[dict,dict]]):
                 )
             for rec in responseData:
                 yield tuple(rec) 
+       
+        if fetch_all:
+            result = []
+            page=1
+            page_size=500
+
+            while True:
+                previous_len=len(result)
+                for item in self.query(project_id,link_type, select, query, fetch_all=False, skip=(page-1)*page_size, take=page_size):
+                    result.append(item)
+
+                if len(result)==previous_len: #if not more data was fetched
+                    return result
+                else:
+                    page=page+1
+
+        else:
+            return list(fetch_data())
 
 class ModelsEndpointGroup(EndpointGroup[data_model.ModelInfo]):
     def __init__(self, client: Client) -> None:
