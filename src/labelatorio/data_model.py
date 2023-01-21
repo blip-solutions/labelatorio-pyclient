@@ -121,6 +121,7 @@ class Project:
     id:Union[str,None]
     name:str
     task_type:str = None
+    tennant_id:str=None
     source:Optional[str] =None
     data_source_files:Union[List[str],None] = None
     current_model_name:Optional[str] =None
