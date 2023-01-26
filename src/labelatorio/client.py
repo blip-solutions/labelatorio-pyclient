@@ -183,7 +183,7 @@ class ProjectEndpointGroup(EndpointGroup[data_model.Project]):
             )
 
     def search(self,search_name:str)  -> List[data_model.ProjectInfo]:
-        """Fuzzy seach by project name 
+        """Fuzzy search by project name 
         note: if exact match exists, you can still get more results, but the exact match will be first
 
         Args:
@@ -242,8 +242,8 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             keyword (str, optional): keyword filter
             by_label (str, optional):label filter
             key (str, optional): key filter (key is your own provided document identifier)
-            false_positives (str, optional): filter to search label in false_positives predictions, additionaly "null" and "!null" special values are suported for finding document with or without false_positives
-            false_negatives (str, optional): filter to search label in false_negatives predictions, additionaly "null" and "!null" special values are suported for finding document with or without false_negatives
+            false_positives (str, optional): filter to search label in false_positives predictions, additionally "null" and "!null" special values are supported for finding document with or without false_positives
+            false_negatives (str, optional): filter to search label in false_negatives predictions, additionally "null" and "!null" special values are supported for finding document with or without false_negatives
             predicted_label (str, optional):  filter to search label predicted_labels 
             prediction_certainty (Optional[str], optional): minimal prediction_certainty
 
@@ -280,21 +280,20 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             skip:int = 0,
             take:int=50
     ) -> Union[List[data_model.TextDocument],List[data_model.ScoredDocumentResponse]]:
-        """General function to get and search in TextoDocuments
+        """General function to get and search in TextDocuments
 
         Args:
             project_id (str): Uuid of project
             project_id (str): Uuid of project
             topic_id (str, optional): topic_id filter
             keyword (str, optional): keyword filter
-            similar_to_doc (any, optional): Id of docr
-            ument to search similar docs to
+            similar_to_doc (any, optional): Id of document to search similar docs to
             similar_to_phrase (str, optional): custom phrase to search similar docs to
             min_score (Union[float,None], optional): Miminal similarity score to cap the results
             by_label (str, optional): label filter
             key (str, optional): key filter (key is your own provided document identifier)
-            false_positives (str, optional): filter to search label in false_positives predictions, additionaly "null" and "!null" special values are suported for finding document with or without false_positives
-            false_negatives (str, optional): filter to search label in false_negatives predictions, additionaly "null" and "!null" special values are suported for finding document with or without false_negatives
+            false_positives (str, optional): filter to search label in false_positives predictions, additionally "null" and "!null" special values are supported for finding document with or without false_positives
+            false_negatives (str, optional): filter to search label in false_negatives predictions, additionally "null" and "!null" special values are supported for finding document with or without false_negatives
             predicted_label (str, optional):  filter to search label predicted_labels 
             prediction_certainty (Optional[str], optional): minimal prediction_certainty
             skip (int, optional): Pagination - number of docs to skip. Defaults to 0.
@@ -520,14 +519,14 @@ class SimilarityLinkEndpointGroup(EndpointGroup[Tuple[dict,dict]]):
     ) -> List[Tuple[dict,dict]]:
         """query the similarity links
         
-        Note: Be aware that links are both sided so eventualy each link is efectively returned twice, with swaped items in the resulting tuple
+        Note: Be aware that links are both sided so eventually each link is effectively returned twice, with swapped items in the resulting tuple
 
         Args:
             project_id (str): Uuid of project
             link_type (str): positive|negative
             select (str): list of fields to select
             query (Union[DocumentQueryFilter,Or,None], optional): query over the left side (source of the link)
-            fetch_all (bool): wheter to fetch all links matching the query_filter if defined. Defaults to true
+            fetch_all (bool): whether to fetch all links matching the query_filter if defined. Defaults to true
             skip (int, optional): paging - items to skip (ignored if fetch_all=True ). Defaults to 0.
             take (int, optional): paging - items to take (ignored if fetch_all=True ). Defaults to 50.
 
@@ -687,16 +686,16 @@ class ServingNodesEndpointGroup(EndpointGroup[data_model.NodeInfo]):
 
     def create_node(self, node_name:str, deployment_type:str, node_type:Optional[str]=None, host_url:Optional[str]=None)-> data_model.NodeInfo: 
         """Creates a serving node.
-        Based on deployment_type you sould set node_type or host_url
-        - For deployent_type==managed: set node_type (CPU|GPU)
-        - For deployent_type==self-hosted: set host_url so testing the node and calling refresh commands would be possible. If Node is not availble on accesible from the internet, it is not needed.
+        Based on deployment_type you should set node_type or host_url
+        - For deployment_type==managed: set node_type (CPU|GPU)
+        - For deployment_type==self-hosted: set host_url so testing the node and calling refresh commands would be possible. If Node is not available on accessible from the internet, it is not needed.
 
 
         Args:
-            node_name (str): node name must be url compatibile name
+            node_name (str): node name must be url compatible name
             deployment_type (str): one of labelatorio.enums.NodeDeploymentTypes options (managed|self-hosted)
             node_type (Optional[str], optional):  one of labelatorio.enums.NodeTypes options (CPU|GPU)
-            host_url (Optional[str], optional): url at which the Node will be hosted. Automaticaly assigned for managed nodes
+            host_url (Optional[str], optional): url at which the Node will be hosted. Automatically assigned for managed nodes
 
         Returns:
             data_model.NodeInfo: the created NodeInfo
