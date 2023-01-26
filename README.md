@@ -1,7 +1,7 @@
 Labelator.io - python client
 ==========================
 
-Python client for **[Labelator.io](https://www.Labelato.io)** - labeling and ML training studio
+Python client for **[Labelator.io](https://www.Labelator.io)** - labeling and ML training studio
 
 
 
@@ -11,9 +11,13 @@ pip install labelatorio
 ```
 
 ## Getting your API token
-![Click on "user" icon in the rigth-top corner, select "User settings". Click on Get API token. Copy token into clipboard. ](/docs/get_token.png "Get your api token")
+![Click on "user" icon in the right-top corner, select "User settings". Click on Get API token. Copy token into clipboard. ](/docs/get_token.png "Get your api token")
 
 
+## Docs:
+Full Labelator.io documentation can be found here [docs.labelator.io](https://docs.labelator.io)
+
+Page dedicated this client can be found [here](https://docs.labelator.io/docs/integrations/python_sdk)
 
 ## Usage
 
