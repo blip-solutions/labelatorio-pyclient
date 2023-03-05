@@ -465,7 +465,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             None
         """
 
-        self._call_endpoint("DELETE", f"/projects/{project_id}/doc/", body=query, query_params={"wait_for_completion":wait_for_completion}, entityClass=None)
+        self._call_endpoint("DELETE", f"/projects/{project_id}/doc/query", body=query, query_params={"wait_for_completion":wait_for_completion}, entityClass=None)
 
 
     def delete_all(self, project_id:str)-> None:
