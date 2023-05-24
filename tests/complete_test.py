@@ -63,12 +63,16 @@ def test_complete_scenario():
 
     client.documents.delete(project_id, ids[-2])
 
+
     found = client.documents.search(project_id, key="1")[0]
     assert found.labels==["A"],"document with key 1 should have label A set"
+
 
     found = client.documents.query(project_id, query=DocumentQueryFilter(key="1").Or(DocumentQueryFilter(key="2")))
     assert len(found)==2, f"two records queried, but got {len(found)}"
 
+    client.documents.delete_by_query(project_id, {"id":ids[10:20]})
+    
     found = client.documents.search(project_id, false_positives="ClassA")
 
     neigbours = client.documents.get_neighbours(project_id, found[0].id, min_score=0.5, take=10)

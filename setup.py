@@ -1,6 +1,9 @@
 import setuptools
-from src.labelatorio import __version__
-
+#from .src.labelatorio import __version__
+with open("src/labelatorio/__init__.py","rt") as f:
+        for line in f.readlines():
+            if line.startswith("__version__"):
+                __version__ = line.split("=")[1].strip(" \n\"")
 
 setuptools.setup(name='labelatorio',
                 version=__version__,
@@ -25,6 +28,7 @@ setuptools.setup(name='labelatorio',
                     "dataclasses-json",
                     "marshmallow",
                     "tqdm",
-                    "pydantic"
+                    "pydantic",
+                    "aiohttp"
                 ]
                 )

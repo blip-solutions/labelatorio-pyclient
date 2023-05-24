@@ -289,7 +289,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             keyword (str, optional): keyword filter
             similar_to_doc (any, optional): Id of document to search similar docs to
             similar_to_phrase (str, optional): custom phrase to search similar docs to
-            min_score (Union[float,None], optional): Miminal similarity score to cap the results
+            min_score (Union[float,None], optional): Minimal similarity score to cap the results
             by_label (str, optional): label filter
             key (str, optional): key filter (key is your own provided document identifier)
             false_positives (str, optional): filter to search label in false_positives predictions, additionally "null" and "!null" special values are supported for finding document with or without false_positives
@@ -465,7 +465,7 @@ class DocumentsEndpointGroup(EndpointGroup[data_model.TextDocument]):
             None
         """
 
-        self._call_endpoint("DELETE", f"/projects/{project_id}/doc/query", body=query, query_params={"wait_for_completion":wait_for_completion}, entityClass=None)
+        self._call_endpoint("POST", f"/projects/{project_id}/doc/delete-by-query", body=query, query_params={"wait_for_completion":wait_for_completion}, entityClass=None)
 
 
     def delete_all(self, project_id:str)-> None:

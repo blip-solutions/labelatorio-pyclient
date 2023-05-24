@@ -1,8 +1,8 @@
 import time
 import labelatorio
-
+from labelatorio.serving import AskQuestionRecord, AnswerSource, PredictionRequestRecord
 CLASSIFICATION_NODE_URL="http://localhost:8000"
-QNA_NODE_URL="http://localhost:8003"
+QNA_NODE_URL="http://localhost:8000"
 
 def test_predictions():
     client = labelatorio.serving.NodeClient(url=CLASSIFICATION_NODE_URL)
@@ -26,10 +26,12 @@ def test_predictions():
 
 def test_questions():
     client = labelatorio.serving.NodeClient(url=QNA_NODE_URL)
-    test_prediction = client.get_answer("test", test=True)
+    test_prediction = client.get_answers("test", test=True, top_k=2)
     assert test_prediction and test_prediction.predictions, "Missing predictions"
 
-    assert test_prediction and len(test_prediction.predictions)==1, "There should be exactly one prediciton"
+    assert test_prediction and len(test_prediction.predictions)==1, "There should be exactly one prediction"
+    test_prediction = client.get_answers(PredictionRequestRecord(text="who am i?"), test=True,top_k=2)
+    test_prediction = client.get_answers(AskQuestionRecord(question="who am i?", ), test=True,top_k=2)
     
     
 
@@ -37,5 +39,5 @@ def test_questions():
 
 
 if __name__=="__main__":
-    test_predictions()
     test_questions()
+    test_predictions()

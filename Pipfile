@@ -10,6 +10,7 @@ marshmallow = "*"
 tqdm = "*"
 pandas = "*"
 pydantic = "*"
+aiohttp = "*"
 
 [dev-packages]
 pytest = "*"

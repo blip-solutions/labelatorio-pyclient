@@ -1,3 +1,12 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = [
+    "setuptools", 
+    "wheel",
+    "pandas",
+    "requests",
+    "dataclasses-json",
+    "marshmallow",
+    "tqdm",
+    "pydantic"
+    ]
 build-backend = "setuptools.build_meta:__legacy__"
